@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "test": "bin/imba test/index.imba",
-    "watch": "imbac -w -o lib src"
+    "watch": "npx imbac -w -o lib src"
   },
   "bugs": "https://github.com/somebee/imba-router/issues",
   "version": "0.4.0",
@@ -38,9 +38,7 @@
     "url": "git://github.com/somebee/imba-router.git"
   },
   "devDependencies": {
-    "express": "^4.16.3"
-  },
-  "peerDependencies": {
-    "imba": "1.x"
+    "express": "^4.16.3",
+    "imba": "github:pushqrdx/imba"
   }
 }

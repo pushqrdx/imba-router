@@ -17,28 +17,10 @@ export class Route
 		@options[key]
 		
 	def setPath path
-		return self if @raw == path
 		@raw = path
 		@groups = []
 		@params = {}
 		@cache = {}
-		
-		if path.indexOf('?') >= 0
-			let parts = path.split('?')
-			path = parts.shift
-			@query = {}
-			# loop through and create regexes for matching?
-			for pair in parts.join('?').split('&')
-				continue unless pair
-				var [k,v] = pair.split('=')
-				if k[0] == '!'
-					k = k.slice(1)
-					v = false
-				if v === ''
-					v = false
-
-				@query[k] = v or (v === false ? false : true)
-
 		path = path.replace(/\:(\w+|\*)(\.)?/g) do |m,id,dot|
 			# what about :id.:format?
 			@groups.push(id) unless id == '*'
@@ -46,84 +28,42 @@ export class Route
 				return "([^\/\#\.\?]+)\."
 			else
 				return "([^\/\#\?]+)"
-		
-		if path == '' and @query
-			return self
-			
+
 		path = '^' + path
-		let end = path[path:length - 1]
-		if @options:exact and end != '$'
+		if @options:exact and path[path:length - 1] != '$'
 			path = path + '(?=[\#\?]|$)'
-		elif (end != '/' and end != '$' and path != '^/')
+		else
 			# we only want to match end OR /
-			# if path[path:length - 1]
 			path = path + '(?=[\/\#\?]|$)'
 		@regex = RegExp.new(path)
 		self
 
-	def test loc, path
-		# test with location
-		loc ||= @router.location
-		path ||= loc.path
-
-		let url = loc.url
-
+	def test url
+		url ||= @router.url # should include hash?
 		return @cache:match if url == @cache:url
 
 		let prefix = ''
-		let matcher = path
-		@cache:url = url
+		let matcher = @cache:url = url
 		@cache:match = null
-		let qmatch
-		
-		if @query
-			qmatch = {}
-			for own k,v of @query
-				let m = loc.query(k)
-				let name = k
-				# no match
-				if v === false
-					return null	if m
-					continue
-				
-				if v[0] == ':'
-					name = v.slice(1)
-					v = true
-
-				if (v == true and m) or v == m
-					qmatch[name] = m
-				else
-					return null
 
 		if @parent and @raw[0] != '/'
-			if let m = @parent.test(loc,path)
-				if path.indexOf(m:path) == 0
+			if let m = @parent.test(url)
+				if url.indexOf(m:path) == 0
 					prefix = m:path + '/'
-					matcher = path.slice(m:path:length + 1)
+					matcher = url.slice(m:path:length + 1)
 		
-		# try to match our part of the path with regex
-		if let match = (@regex ? matcher.match(@regex) : [''])
-			let fullpath = prefix + match[0]
-			let prevParams = @params
-			# nothing changed
-			if fullpath == @params:path
+		if let match = matcher.match(@regex)
+			let path = prefix + match[0]
+			if path == @params:path
 				@params:url = url
-			else
-				@params = {path: fullpath, url: url}
-				if @groups:length
-					for item,i in match
-						if let name = @groups[i - 1]
-							@params[name] = item
-			if qmatch
-				let change = no
-				for own k,v of qmatch
-					if @params[k] != v
-						change = yes
-						@params[k] = v
+				return @cache:match = @params
 
-				if change and prevParams == @params
-					@params = Object.assign({},@params)
-			# try to match tab-values as well
+			@params = {path: path, url: url}
+			if @groups:length
+				for item,i in match
+					if let name = @groups[i - 1]
+						@params[name] = item
+
 			return @cache:match = @params
 
 		return @cache:match = null
@@ -175,24 +115,14 @@ export class Route
 		
 		# let base = @router.root or ''
 		let base = ''
-		let raw = @raw
 		@cache:resolveUrl = url # base + url
-		
-		# if @query
-		# 	raw = raw.slice(0,raw.indexOf('?'))
-		# 	# add / remove params from url
 		
 		if @parent and @raw[0] != '/'
 			if let m = @parent.test
-				# what if 
-				if raw[0] == '?'
-					# possibly replace with & or even replace param?
-					@cache:resolved = base + m:path + raw
-				else
-					@cache:resolved = base + m:path + '/' + raw
+				@cache:resolved = base + m:path + '/' + @raw # .replace('$','')
 		else
 			# FIXME what if the url has some unknowns?
-			@cache:resolved = base + raw # .replace(/[\@\$]/g,'')
+			@cache:resolved = base + @raw # .replace(/[\@\$]/g,'')
 
 		return @cache:resolved
 		
